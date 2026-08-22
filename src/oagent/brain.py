@@ -54,7 +54,20 @@ class LLMBrain(Brain):
         self.model = model
 
     def decide(self, goal: str, tools_desc: str, history: list[str]) -> Decision:
-        hist = "\n".join(f"- {h}" for h in history) if history else "(nothing tried yet)"
+        if not history:
+            hist = "(nothing tried yet)"
+        else:
+            baseline = history[0]
+            lines = []
+            for i, h in enumerate(history):
+                if i == 0:
+                    lines.append(f"- [baseline] {h}")
+                elif h != baseline:
+                    lines.append(f"- [!! DIFFERS from baseline] {h}")
+                else:
+                    lines.append(f"- [same as baseline] {h}")
+            hist = "\n".join(lines)
+
         prompt = f"""You are an offensive security agent testing a login endpoint.
 
 GOAL: {goal}
@@ -65,9 +78,22 @@ AVAILABLE TOOLS:
 WHAT YOU'VE OBSERVED SO FAR:
 {hist}
 
-Decide the single next action. Think like a pentester: probe, observe errors,
-and adapt (e.g. a SQL error suggests trying an injection bypass). When you have
-confirmed a vulnerability, use report_finding. If nothing left to do, use "stop".
+Decide the single next action. Think like a pentester: probe, observe how
+responses change, and adapt.
+
+Important: the target may NOT announce success directly — there may be no error
+message and no explicit "success" text. Success can be IMPLICIT. If a payload
+produces a response that DIFFERS from a normal/baseline request, that difference
+is itself evidence the payload worked. Compare your observations: establish a
+baseline (a normal request), then look for payloads that produce a DIFFERENT
+response. A consistent, reproducible difference between an injected request and
+the baseline is a confirmed finding — do not keep re-testing the same payload
+once you have already seen the differential.BEFORE choosing a new action, review the observations above: if any is marked
+"DIFFERS from baseline", you have ALREADY produced a differential — that is your
+confirmed finding. Report it immediately rather than continuing to probe.
+
+When you have confirmed a vulnerability (including via a response differential),
+use report_finding. If nothing left to do, use "stop".
 
 Respond with ONLY a JSON object, no other text:
 {{"reasoning": "<why this action>", "tool": "try_login|report_finding|stop", "args": {{...}}}}

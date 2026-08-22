@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from oagent.target import SimulatedLogin
+from oagent.target import BlindLogin
 
 
 @dataclass
@@ -13,7 +13,7 @@ class ToolResult:
 
 
 class Tools:
-    def __init__(self, target: SimulatedLogin):
+    def __init__(self, target: BlindLogin):
         self.target = target
         self.findings: list[str] = []
 
