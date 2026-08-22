@@ -88,7 +88,20 @@ is itself evidence the payload worked. Compare your observations: establish a
 baseline (a normal request), then look for payloads that produce a DIFFERENT
 response. A consistent, reproducible difference between an injected request and
 the baseline is a confirmed finding — do not keep re-testing the same payload
-once you have already seen the differential.BEFORE choosing a new action, review the observations above: if any is marked
+once you have already seen the differential.
+
+If a payload produces NO differential (same response as baseline), do NOT repeat
+the same payload — VARY it. SQL injection often needs to neutralize the rest of
+the query. Escalate through variations, for example:
+  - comment out the rest:   admin'--
+  - tautology + comment:    ' OR '1'='1'--
+  - different operators:    ' OR 1=1--
+  - closing the quote differently
+A simple `' OR '1'='1` without a comment often FAILS because the remaining
+password check still applies — using -- to comment it out is usually required.
+Track which payloads you've already tried and always try something DIFFERENT.
+
+BEFORE choosing a new action, review the observations above: if any is marked
 "DIFFERS from baseline", you have ALREADY produced a differential — that is your
 confirmed finding. Report it immediately rather than continuing to probe.
 
