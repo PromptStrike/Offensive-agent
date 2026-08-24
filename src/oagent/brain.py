@@ -28,7 +28,7 @@ class MockBrain(Brain):
     """Scripted reasoning that mimics an LLM working through an auth bypass.
     Deterministic — used to prove the scaffolding works before going live."""
 
-    def decide(self, goal: str, tools_desc: str, history: list[str]) -> Decision:
+    def decide(self, goal: str, tools_desc: str, history: list[dict]) -> Decision:
         joined = " ".join(history)
         if not history:
             return Decision("No info yet. Probe with a normal username.",
@@ -53,23 +53,31 @@ class LLMBrain(Brain):
         self.client = Groq(api_key=os.environ["GROQ_API_KEY"])
         self.model = model
 
-    def decide(self, goal: str, tools_desc: str, history: list[str]) -> Decision:
+    def decide(self, goal: str, tools_desc: str, history: list[dict]) -> Decision:
         if not history:
             hist = "(nothing tried yet)"
         else:
-            baseline = history[0]
+            # history is a list of {action, observation} dicts.
+            # render ACTION -> OBSERVATION pairs so the agent can attribute
+            # which of its OWN actions caused which result.
+            obs_strings = [h["observation"] for h in history
+                           if h.get("observation", "").startswith("HTTP")]
+            baseline = obs_strings[0] if obs_strings else None
             lines = []
-            for i, h in enumerate(history):
-                if i == 0:
-                    lines.append(f"- [baseline] {h}")
-                elif h != baseline:
-                    lines.append(f"- [!! DIFFERS from baseline] {h}")
+            for h in history:
+                action = h.get("action", "?")
+                obs = h.get("observation", "?")
+                if obs == baseline:
+                    tag = "[baseline / no effect]"
+                elif obs.startswith("HTTP") and obs != baseline:
+                    tag = "[!! DIFFERS — THIS action produced a different result]"
                 else:
-                    lines.append(f"- [same as baseline] {h}")
+                    tag = ""
+                lines.append(f"- {action} -> {obs} {tag}")
+            hist = "\n".join(lines)
             hist = "\n".join(lines)
 
-        prompt = f"""You are an offensive security agent testing a login endpoint.
-
+        prompt = f"""You are a security testing agent probing a login endpoint.
 GOAL: {goal}
 
 AVAILABLE TOOLS:
@@ -78,35 +86,9 @@ AVAILABLE TOOLS:
 WHAT YOU'VE OBSERVED SO FAR:
 {hist}
 
-Decide the single next action. Think like a pentester: probe, observe how
-responses change, and adapt.
-
-Important: the target may NOT announce success directly — there may be no error
-message and no explicit "success" text. Success can be IMPLICIT. If a payload
-produces a response that DIFFERS from a normal/baseline request, that difference
-is itself evidence the payload worked. Compare your observations: establish a
-baseline (a normal request), then look for payloads that produce a DIFFERENT
-response. A consistent, reproducible difference between an injected request and
-the baseline is a confirmed finding — do not keep re-testing the same payload
-once you have already seen the differential.
-
-If a payload produces NO differential (same response as baseline), do NOT repeat
-the same payload — VARY it. SQL injection often needs to neutralize the rest of
-the query. Escalate through variations, for example:
-  - comment out the rest:   admin'--
-  - tautology + comment:    ' OR '1'='1'--
-  - different operators:    ' OR 1=1--
-  - closing the quote differently
-A simple `' OR '1'='1` without a comment often FAILS because the remaining
-password check still applies — using -- to comment it out is usually required.
-Track which payloads you've already tried and always try something DIFFERENT.
-
-BEFORE choosing a new action, review the observations above: if any is marked
-"DIFFERS from baseline", you have ALREADY produced a differential — that is your
-confirmed finding. Report it immediately rather than continuing to probe.
-
-When you have confirmed a vulnerability (including via a response differential),
-use report_finding. If nothing left to do, use "stop".
+You can submit any username and password you want. Decide the single next
+action to work toward the goal. Observe how the endpoint responds and adapt
+based on what you learn.
 
 Respond with ONLY a JSON object, no other text:
 {{"reasoning": "<why this action>", "tool": "try_login|report_finding|stop", "args": {{...}}}}
