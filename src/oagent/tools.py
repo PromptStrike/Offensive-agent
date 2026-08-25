@@ -1,9 +1,11 @@
-"""Tools the agent can call. The brain chooses; these execute."""
+"""Tools the agent can call. The brain chooses; these execute.
+The interaction tool is GENERIC (http_request) — not vuln-specific — so the
+same agent can probe any endpoint for any vulnerability class."""
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from oagent.target import BlindLogin
+from oagent.http_target import HTTPTarget
 
 
 @dataclass
@@ -13,12 +15,14 @@ class ToolResult:
 
 
 class Tools:
-    def __init__(self, target: BlindLogin):
+    def __init__(self, target: HTTPTarget):
         self.target = target
         self.findings: list[str] = []
 
-    def try_login(self, username: str) -> ToolResult:
-        resp = self.target.login(username)
+    def http_request(self, method: str, path: str,
+                     params: dict | None = None,
+                     data: dict | None = None) -> ToolResult:
+        resp = self.target.request(method, path, params=params, data=data)
         return ToolResult(ok=True, observation=f"HTTP {resp.status}: {resp.body}")
 
     def report_finding(self, description: str) -> ToolResult:
@@ -27,8 +31,10 @@ class Tools:
 
     def registry(self) -> dict[str, tuple[Callable, str]]:
         return {
-            "try_login": (self.try_login,
-                          "try_login(username): submit a username to the login endpoint"),
+            "http_request": (self.http_request,
+                             "http_request(method, path, params, data): send an HTTP request. "
+                             "method=GET/POST, path like '/login' or '/profile', "
+                             "params={} for query string, data={} for form body"),
             "report_finding": (self.report_finding,
                                "report_finding(description): record a confirmed vulnerability"),
         }

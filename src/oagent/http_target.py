@@ -1,6 +1,6 @@
-"""Real HTTP target — makes actual requests to a running app.
-Replaces the in-process simulation. This is a REAL attack over HTTP
-against a locally-running vulnerable app."""
+"""Real HTTP target — a GENERIC client the agent uses to probe any endpoint.
+Not vuln-specific: the agent decides method, path, and parameters itself.
+Local testing only."""
 from __future__ import annotations
 from dataclasses import dataclass
 import requests
@@ -12,15 +12,19 @@ class Response:
     body: str
 
 
-class HTTPLogin:
-    def __init__(self, url: str = "http://127.0.0.1:5000/login"):
-        self.url = url
+class HTTPTarget:
+    def __init__(self, base: str = "http://127.0.0.1:5000"):
+        self.base = base.rstrip("/")
 
-    def login(self, username: str, password: str = "x") -> Response:
+    def request(self, method: str, path: str,
+                params: dict | None = None,
+                data: dict | None = None) -> Response:
+        url = self.base + ("/" + path.lstrip("/"))
         try:
-            r = requests.post(self.url,
-                              data={"username": username, "password": password},
-                              timeout=5)
+            r = requests.request(method.upper(), url,
+                                 params=params or {},
+                                 data=data or {},
+                                 timeout=5)
             return Response(r.status_code, r.text.strip())
         except requests.RequestException as e:
             return Response(0, f"request failed: {e}")

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from oagent.brain import Brain
 from oagent.tools import Tools
 
-SAFE_TOOLS = {"try_login", "report_finding"}   # allowlist — deny by default
+SAFE_TOOLS = {"http_request", "report_finding"}   # allowlist — deny by default
 
 
 def safety_check(tool: str, args: dict) -> tuple[bool, str]:
@@ -83,7 +83,7 @@ class Controller:
             action_str = f"{decision.tool}({decision.args})"
 
             # STUCK-DETECTION: refuse to repeat an action that already failed
-            if decision.tool == "try_login" and self._already_tried(action_str):
+            if decision.tool == "http_request" and self._already_tried(action_str):
                 print(f"  STUCK: '{action_str}' already tried and failed — try something DIFFERENT")
                 self.history.append({"action": action_str,
                                      "observation": "[repeat of a previously-failed action — skipped]"})
