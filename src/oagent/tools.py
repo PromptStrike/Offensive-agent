@@ -25,8 +25,8 @@ class Tools:
         resp = self.target.request(method, path, params=params, data=data)
         return ToolResult(ok=True, observation=f"HTTP {resp.status}: {resp.body}")
 
-    def report_finding(self, description: str) -> ToolResult:
-        self.findings.append(description)
+    def report_finding(self, description: str, vuln_type: str = "") -> ToolResult:
+        self.findings.append(f"[{vuln_type}] {description}" if vuln_type else description)
         return ToolResult(ok=True, observation=f"FINDING RECORDED: {description}")
 
     def registry(self) -> dict[str, tuple[Callable, str]]:
@@ -36,5 +36,6 @@ class Tools:
                              "method=GET/POST, path like '/login' or '/profile', "
                              "params={} for query string, data={} for form body"),
             "report_finding": (self.report_finding,
-                               "report_finding(description): record a confirmed vulnerability"),
+                               "report_finding(description, vuln_type): record a confirmed "
+                               "vulnerability. vuln_type is one of: sqli, idor"),
         }
