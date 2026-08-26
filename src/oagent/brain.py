@@ -75,7 +75,6 @@ class LLMBrain(Brain):
                     tag = ""
                 lines.append(f"- {action} -> {obs} {tag}")
             hist = "\n".join(lines)
-            hist = "\n".join(lines)
 
         prompt = f"""You are a security testing agent probing a login endpoint.
 GOAL: {goal}
@@ -92,20 +91,26 @@ based on what you learn.
 
 Respond with ONLY a JSON object, no other text:
 {{"reasoning": "<why this action>", "tool": "http_request|report_finding|stop", "args": {{...}}}}
-For http_request args use {{"username": "..."}}. For report_finding use {{"description": "..."}}."""
+For http_request args use {{"method": "GET|POST", "path": "/...", "params": {{...}}, "data": {{...}}}}. For report_finding use {{"description": "...", "vuln_type": "sqli|idor"}}."""
 
         try:
             resp = self.client.chat.completions.create(
                 model=self.model,
                 temperature=0.0,
-                max_tokens=300,
+                max_tokens=800,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = resp.choices[0].message.content.strip()
+            raw = (resp.choices[0].message.content or "").strip()
+            # strip markdown code fences if the model wrapped its JSON
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"\s*```$", "", raw).strip()
             match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if not match:
+                return Decision(f"could not parse response as JSON: {raw[:100]!r}",
+                                "stop", {})
             obj = json.loads(match.group(0))
             return Decision(obj.get("reasoning", ""),
                             obj.get("tool", "stop"),
-                            obj.get("args", {}))
+                            obj.get("args", {}) or {})
         except Exception as e:
             return Decision(f"error: {e}", "stop", {})
