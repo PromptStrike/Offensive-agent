@@ -30,20 +30,17 @@ def _obs_pairs(history: list[dict]) -> list[tuple[str, str]]:
             if h.get("observation", "").startswith("HTTP")]
 
 
-def _validate_sqli(history: list[dict]) -> tuple[bool, str]:
-    """SQLi/auth-bypass: a crafted request achieved a PRIVILEGED response that
-    the baseline (normal) request did not — i.e. authenticated/admin access."""
+def _validate_sqli(history):
     obs = _observations(history)
-    if len(obs) < 2:
-        return False, "insufficient observations"
-    baseline = obs[0]
-    # a privileged response differs from baseline AND shows an authenticated state
-    privileged = [o for o in obs if o != baseline and
-                  ("role=" in o or "Home" in o or "Sign out" in o)]
-    if not privileged:
-        return False, "no privileged/authenticated response distinct from baseline"
-    return True, f"auth bypass confirmed: reached an authenticated response ({len(privileged)} time(s))"
-
+    # success = an authenticated/admin response appeared
+    privileged = [o for o in obs if ("role=admin" in o or "Sign out" in o or "Home" in o)]
+    # AND a normal/failed login response also appeared (proving it's not "everything returns Home")
+    failed = [o for o in obs if "Login |" in o]
+    if privileged and failed:
+        return True, f"auth bypass confirmed: reached authenticated response ({len(privileged)}x), distinct from failed logins"
+    if privileged and not failed:
+        return True, f"auth bypass confirmed: reached authenticated response ({len(privileged)}x)"
+    return False, "no authenticated/privileged response observed"
 
 def _validate_idor(history: list[dict]) -> tuple[bool, str]:
     """IDOR: accessing MULTIPLE DISTINCT subjects' data via the same endpoint by

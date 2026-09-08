@@ -49,17 +49,21 @@ class MockBrain(Brain):
 class LLMBrain(Brain):
     """Real LLM decision-maker. Same interface as MockBrain — swap freely."""
 
-    def __init__(self, model: str = "openai/gpt-oss-120b"):
+    def __init__(self, model: str = "openai/gpt-oss-120b", attribution: bool = True):
         self.client = Groq(api_key=os.environ["GROQ_API_KEY"])
         self.model = model
+        self.attribution = attribution
 
     def decide(self, goal: str, tools_desc: str, history: list[dict]) -> Decision:
         if not history:
             hist = "(nothing tried yet)"
+        elif not self.attribution:
+            # CONDITION A (attribution OFF): flat list of bare observations.
+            # No action->observation pairing, no differential flags.
+            hist = "\n".join(f"- {h.get('observation', '?')}" for h in history)
         else:
-            # history is a list of {action, observation} dicts.
-            # render ACTION -> OBSERVATION pairs so the agent can attribute
-            # which of its OWN actions caused which result.
+            # CONDITION B (attribution ON): action -> observation pairs with
+            # differential flags, so the agent can attribute cause to its own actions.
             obs_strings = [h["observation"] for h in history
                            if h.get("observation", "").startswith("HTTP")]
             baseline = obs_strings[0] if obs_strings else None
